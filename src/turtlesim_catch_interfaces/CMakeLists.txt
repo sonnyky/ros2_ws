@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(turtlesim_catch)
+project(turtlesim_catch_interfaces)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -7,9 +7,9 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(turtlesim REQUIRED)
-find_package(geometry_msgs REQUIRED)
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -23,12 +23,13 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_executable(turtle_controller src/turtle_controller.cpp)
-ament_target_dependencies(turtle_controller rclcpp turtlesim geometry_msgs)
+find_package(rosidl_default_generators REQUIRED)
 
-install(TARGETS
-  turtle_controller
-  DESTINATION lib/${PROJECT_NAME}
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Turtle.msg"
+  "msg/TurtleArray.msg"
+  "srv/CaughtTurtle.srv"
 )
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()
