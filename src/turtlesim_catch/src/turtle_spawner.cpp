@@ -11,6 +11,7 @@ class TurtleSpawnerNode : public rclcpp::Node
 public:
     TurtleSpawnerNode() : Node("turtle_spawner_node"), rng(rd()), counter(2)
     {
+        publisherToAliveTurtles = this->create_publisher<turtlesim_catch_interfaces::msg::TurtleArray>("/alive_turtles", 10);
         timer = this->create_wall_timer(std::chrono::seconds(2), std::bind(&TurtleSpawnerNode::SpawnTurtle, this));
         RCLCPP_INFO(this->get_logger(), "Turtle spawner node started.");
     }
@@ -22,6 +23,9 @@ private:
     std::mt19937 rng;
     int counter;
     turtlesim::msg::Pose newPose;
+    std::vector<turtlesim_catch_interfaces::msg::Turtle> aliveTurtles;
+
+    rclcpp::Publisher<turtlesim_catch_interfaces::msg::TurtleArray>::SharedPtr publisherToAliveTurtles;
 
     void RequestSpawnService()
     {
@@ -34,7 +38,15 @@ private:
         spawnRequest->x = newPose.x;
         spawnRequest->y = newPose.y;
         spawnRequest->theta = 0;
-        spawnRequest->name = "turtle" + std::to_string(counter);
+        std::string turtleName = "turtle" + std::to_string(counter);
+
+        spawnRequest->name = turtleName;
+        auto newTurtle = turtlesim_catch_interfaces::msg::Turtle();
+        newTurtle.x = newPose.x;
+        newTurtle.y = newPose.y;
+        newTurtle.name = turtleName;
+
+        aliveTurtles.push_back(newTurtle);
 
         counter++;
 
@@ -43,6 +55,7 @@ private:
         try
         {
             auto response = future.get();
+            PublishAliveTurtles();
             RCLCPP_INFO(this->get_logger(), "%s", response->name.c_str());
         }
         catch (const std::exception &e)
@@ -61,11 +74,18 @@ private:
         t.detach();
     }
 
+    void PublishAliveTurtles()
+    {
+        auto msg = turtlesim_catch_interfaces::msg::TurtleArray();
+        msg.turtles = this->aliveTurtles;
+        publisherToAliveTurtles->publish(msg);
+    }
+
     turtlesim::msg::Pose GetRandomPosition()
     {
         auto randomPose = turtlesim::msg::Pose();
-        randomPose.x = GetRandomValue(0, 11);
-        randomPose.y = GetRandomValue(0, 11);
+        randomPose.x = GetRandomValue(0.5, 10.5);
+        randomPose.y = GetRandomValue(0.5, 10.5);
 
         return randomPose;
     }
