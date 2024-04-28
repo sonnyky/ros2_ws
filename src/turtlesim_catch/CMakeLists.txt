@@ -24,8 +24,10 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+include_directories(${turtlesim_catch_interfaces_INCLUDE_DIRS})
+
 add_executable(turtle_controller src/turtle_controller.cpp)
-ament_target_dependencies(turtle_controller rclcpp turtlesim geometry_msgs)
+ament_target_dependencies(turtle_controller rclcpp turtlesim geometry_msgs turtlesim_catch_interfaces)
 
 add_executable(turtle_spawner src/turtle_spawner.cpp)
 ament_target_dependencies(turtle_spawner rclcpp turtlesim turtlesim_catch_interfaces)

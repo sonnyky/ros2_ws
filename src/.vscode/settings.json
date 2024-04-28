@@ -1,7 +1,9 @@
 {
     "cmake.configureOnOpen": false,
     "files.associations": {
-        "*.msg": "cpp"
+        "*.msg": "cpp",
+        "chrono": "cpp",
+        "functional": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

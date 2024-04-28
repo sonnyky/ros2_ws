@@ -5,6 +5,7 @@
 #include "turtlesim/srv/spawn.hpp"
 #include "turtlesim_catch_interfaces/msg/turtle.hpp"
 #include "turtlesim_catch_interfaces/msg/turtle_array.hpp"
+#include "turtlesim_catch_interfaces/srv/caught_turtle.hpp"
 
 class TurtleSpawnerNode : public rclcpp::Node
 {
@@ -12,7 +13,12 @@ public:
     TurtleSpawnerNode() : Node("turtle_spawner_node"), rng(rd()), counter(2)
     {
         publisherToAliveTurtles = this->create_publisher<turtlesim_catch_interfaces::msg::TurtleArray>("/alive_turtles", 10);
-        timer = this->create_wall_timer(std::chrono::seconds(2), std::bind(&TurtleSpawnerNode::SpawnTurtle, this));
+
+        catchTurtleServer = this->create_service<turtlesim_catch_interfaces::srv::CaughtTurtle>(
+            "/catch_turtle",
+            std::bind(&TurtleSpawnerNode::CallbackCaughtTurtle, this, std::placeholders::_1, std::placeholders::_2));
+
+        timer = this->create_wall_timer(std::chrono::seconds(10), std::bind(&TurtleSpawnerNode::SpawnTurtle, this));
         RCLCPP_INFO(this->get_logger(), "Turtle spawner node started.");
     }
 
@@ -26,6 +32,16 @@ private:
     std::vector<turtlesim_catch_interfaces::msg::Turtle> aliveTurtles;
 
     rclcpp::Publisher<turtlesim_catch_interfaces::msg::TurtleArray>::SharedPtr publisherToAliveTurtles;
+    rclcpp::Service<turtlesim_catch_interfaces::srv::CaughtTurtle>::SharedPtr catchTurtleServer;
+
+    std::string caughtTurtleName;
+
+    void CallbackCaughtTurtle(
+            const turtlesim_catch_interfaces::srv::CaughtTurtle::Request::SharedPtr request,
+            const turtlesim_catch_interfaces::srv::CaughtTurtle::Response::SharedPtr response)
+    {
+        RCLCPP_INFO(this->get_logger(), "got request to kill %s and hot response to send to turtle kill service %s", request->name.c_str(), response->received_name.c_str());
+    }
 
     void RequestSpawnService()
     {
