@@ -3,6 +3,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "turtlesim/msg/pose.hpp"
 #include "turtlesim/srv/spawn.hpp"
+#include "turtlesim/srv/kill.hpp"
 #include "turtlesim_catch_interfaces/msg/turtle.hpp"
 #include "turtlesim_catch_interfaces/msg/turtle_array.hpp"
 #include "turtlesim_catch_interfaces/srv/caught_turtle.hpp"
@@ -37,10 +38,47 @@ private:
     std::string caughtTurtleName;
 
     void CallbackCaughtTurtle(
-            const turtlesim_catch_interfaces::srv::CaughtTurtle::Request::SharedPtr request,
-            const turtlesim_catch_interfaces::srv::CaughtTurtle::Response::SharedPtr response)
+        const turtlesim_catch_interfaces::srv::CaughtTurtle::Request::SharedPtr request,
+        const turtlesim_catch_interfaces::srv::CaughtTurtle::Response::SharedPtr response)
     {
+        response->received_name = request->name;
+        std::thread t = std::thread(std::bind(&TurtleSpawnerNode::RequestKillService, this, request->name));
+        t.detach();
         RCLCPP_INFO(this->get_logger(), "got request to kill %s and hot response to send to turtle kill service %s", request->name.c_str(), response->received_name.c_str());
+    }
+
+    void RequestKillService(const std::string &targetName)
+    {
+        auto client = this->create_client<turtlesim::srv::Kill>("/kill");
+        while (!client->wait_for_service(std::chrono::seconds(1)))
+        {
+            RCLCPP_WARN(this->get_logger(), "Waiting for turtle kill server to be up");
+        }
+        auto killRequest = std::make_shared<turtlesim::srv::Kill::Request>();
+        killRequest->name = targetName;
+        auto future = client->async_send_request(killRequest);
+        try
+        {
+            auto response = future.get();
+            UpdateAliveTurtles(targetName);
+            RCLCPP_INFO(this->get_logger(), "called kill service");
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Kill Service call failed");
+        }
+    }
+
+    void UpdateAliveTurtles(const std::string &name)
+    {
+        // Use the erase-remove idiom to remove the turtle with the matching name
+        aliveTurtles.erase(
+            std::remove_if(aliveTurtles.begin(), aliveTurtles.end(),
+                           [&name](const turtlesim_catch_interfaces::msg::Turtle &turtle)
+                           {
+                               return turtle.name == name;
+                           }),
+            aliveTurtles.end());
     }
 
     void RequestSpawnService()
