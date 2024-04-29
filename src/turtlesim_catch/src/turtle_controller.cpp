@@ -133,8 +133,7 @@ private:
         }
         else
         {
-
-            // Call the /catch_turtle service
+            CatchTurtle();
         }
 
         messageToCmdVel.linear.y = 0;
@@ -142,9 +141,16 @@ private:
 
         messageToCmdVel.angular.x = 0;
         messageToCmdVel.angular.y = 0;
-        RCLCPP_INFO(this->get_logger(), "publishing %f, %f", messageToCmdVel.linear.x, messageToCmdVel.angular.z);
+        //RCLCPP_INFO(this->get_logger(), "publishing %f, %f", messageToCmdVel.linear.x, messageToCmdVel.angular.z);
 
         publisherToCmdVel->publish(messageToCmdVel);
+    }
+
+    void CatchTurtle()
+    {
+        RCLCPP_INFO(this->get_logger(), "Catching turtle. %s", nextTargetTurtle.name.c_str());
+        std::thread t = std::thread(std::bind(&TurtleControllerNode::RequestCaughtTurtleService, this));
+        t.detach();
     }
 
     void RequestCaughtTurtleService()
