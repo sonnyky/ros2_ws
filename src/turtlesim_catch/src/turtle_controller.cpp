@@ -22,7 +22,7 @@ public:
         publisherToCmdVel = this->create_publisher<geometry_msgs::msg::Twist>("/turtle1/cmd_vel", 10);
         nextTargetPose.x = -1;
         nextTargetPose.y = -1;
-        moveTimer = this->create_wall_timer(std::chrono::seconds(1), std::bind(&TurtleControllerNode::MoveToGoal, this));
+        moveTimer = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&TurtleControllerNode::MoveToGoal, this));
 
         RCLCPP_INFO(this->get_logger(), "Turtle pose subscriber started.");
     }
@@ -97,7 +97,7 @@ private:
         return std::sqrt(std::pow((goalPose.x - selfPose.x), 2) + pow((goalPose.y - selfPose.y), 2));
     }
 
-    float LinearVel(const turtlesim::msg::Pose goalPose, float constant = 3.5)
+    float LinearVel(const turtlesim::msg::Pose goalPose, float constant = 1.5)
     {
         return constant * this->EuclideanDistance(goalPose);
     }
@@ -107,7 +107,7 @@ private:
         return std::atan2(goalPose.y - selfPose.y, goalPose.x - selfPose.x);
     }
 
-    float AngularVel(const turtlesim::msg::Pose goalPose, float constant = 6)
+    float AngularVel(const turtlesim::msg::Pose goalPose, float constant = 3)
     {
         return constant * (this->SteeringAngle(goalPose) - selfPose.theta);
     }
