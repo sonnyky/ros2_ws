@@ -2,6 +2,7 @@
 #include "turtlesim/msg/pose.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include <cmath>
+#include <optional>
 #include "turtlesim_catch_interfaces/msg/turtle.hpp"
 #include "turtlesim_catch_interfaces/msg/turtle_array.hpp"
 #include "turtlesim_catch_interfaces/srv/caught_turtle.hpp"
@@ -9,7 +10,7 @@
 class TurtleControllerNode : public rclcpp::Node
 {
 public:
-    TurtleControllerNode() : Node("turtle_controller_node")
+    TurtleControllerNode() : Node("turtle_controller_node"), nextTargetTurtle(std::nullopt)
     {
         subscriberToMainTurtlePose = this->create_subscription<turtlesim::msg::Pose>(
             "/turtle1/pose", 10,
@@ -40,7 +41,7 @@ private:
 
     turtlesim::msg::Pose selfPose;
     turtlesim::msg::Pose nextTargetPose;
-    turtlesim_catch_interfaces::msg::Turtle nextTargetTurtle;
+    std::optional<turtlesim_catch_interfaces::msg::Turtle> nextTargetTurtle;
     void CallbackClosestTurtleAsNextTarget(const turtlesim_catch_interfaces::msg::TurtleArray::SharedPtr alive_turtles_msg)
     {
         RCLCPP_INFO(this->get_logger(), "%ld turtles still alive", alive_turtles_msg->turtles.size());
@@ -75,14 +76,21 @@ private:
                                         });
 
         // Check if we actually found a turtle
-        if (closest != turtles.end())
+        if (closest != turtles.end() && !areTurtlesEqual(*nextTargetTurtle, *closest))
         {
             nextTargetPose.x = closest->x;
             nextTargetPose.y = closest->y;
-            nextTargetTurtle.x = closest->x;
-            nextTargetTurtle.y = closest->y;
-            nextTargetTurtle.name = closest->name;
+            nextTargetTurtle = *closest;
+            RCLCPP_INFO(this->get_logger(), "this should be only called once per turtle");
         }
+    }
+
+    bool areTurtlesEqual(const turtlesim_catch_interfaces::msg::Turtle &turtle1, const turtlesim_catch_interfaces::msg::Turtle &turtle2)
+    {
+        return (turtle1.name == turtle2.name) &&
+               (turtle1.x == turtle2.x) &&
+               (turtle1.y == turtle2.y);
+        // Add more comparisons for other relevant fields
     }
 
     rclcpp::Subscription<turtlesim::msg::Pose>::SharedPtr subscriberToMainTurtlePose;
@@ -97,7 +105,7 @@ private:
         return std::sqrt(std::pow((goalPose.x - selfPose.x), 2) + pow((goalPose.y - selfPose.y), 2));
     }
 
-    float LinearVel(const turtlesim::msg::Pose goalPose, float constant = 1.5)
+    float LinearVel(const turtlesim::msg::Pose goalPose, float constant = 2)
     {
         return constant * this->EuclideanDistance(goalPose);
     }
@@ -107,7 +115,7 @@ private:
         return std::atan2(goalPose.y - selfPose.y, goalPose.x - selfPose.x);
     }
 
-    float AngularVel(const turtlesim::msg::Pose goalPose, float constant = 3)
+    float AngularVel(const turtlesim::msg::Pose goalPose, float constant = 6)
     {
         return constant * (this->SteeringAngle(goalPose) - selfPose.theta);
     }
@@ -133,7 +141,10 @@ private:
         }
         else
         {
-            CatchTurtle();
+            if (nextTargetTurtle.has_value())
+            {
+                CatchTurtle();
+            }
         }
 
         messageToCmdVel.linear.y = 0;
@@ -141,14 +152,15 @@ private:
 
         messageToCmdVel.angular.x = 0;
         messageToCmdVel.angular.y = 0;
-        //RCLCPP_INFO(this->get_logger(), "publishing %f, %f", messageToCmdVel.linear.x, messageToCmdVel.angular.z);
+        // RCLCPP_INFO(this->get_logger(), "publishing %f, %f", messageToCmdVel.linear.x, messageToCmdVel.angular.z);
 
         publisherToCmdVel->publish(messageToCmdVel);
     }
 
     void CatchTurtle()
     {
-        RCLCPP_INFO(this->get_logger(), "Catching turtle. %s", nextTargetTurtle.name.c_str());
+        // const turtlesim_catch_interfaces::msg::Turtle &targetTurtle = nextTargetTurtle.value();
+        // RCLCPP_INFO(this->get_logger(), "Catching turtle. %s", targetTurtle.name.c_str());
         std::thread t = std::thread(std::bind(&TurtleControllerNode::RequestCaughtTurtleService, this));
         t.detach();
     }
@@ -160,20 +172,26 @@ private:
         {
             RCLCPP_WARN(this->get_logger(), "Waiting catch turtle server to be up");
         }
-        auto catchRequest = std::make_shared<turtlesim_catch_interfaces::srv::CaughtTurtle::Request>();
 
-        catchRequest->name = nextTargetTurtle.name;
-
-        auto future = client->async_send_request(catchRequest);
-
-        try
+        if (nextTargetTurtle.has_value())
         {
-            auto response = future.get();
-            RCLCPP_INFO(this->get_logger(), "got response from catch turtle service: %s", response->received_name.c_str());
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Catch Turtle Service call failed");
+            auto catchRequest = std::make_shared<turtlesim_catch_interfaces::srv::CaughtTurtle::Request>();
+
+            const turtlesim_catch_interfaces::msg::Turtle &targetTurtle = nextTargetTurtle.value();
+            catchRequest->name = targetTurtle.name;
+
+            auto future = client->async_send_request(catchRequest);
+            nextTargetTurtle.reset();
+
+            try
+            {
+                auto response = future.get();
+                // RCLCPP_INFO(this->get_logger(), "got response from catch turtle service: %s", response->received_name.c_str());
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Catch Turtle Service call failed");
+            }
         }
     }
 };
